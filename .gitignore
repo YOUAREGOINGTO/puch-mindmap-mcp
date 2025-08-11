@@ -1,0 +1,13 @@
+/venv/
+.env
+__pycache__/
+*.pyc 
+Instructions.md
+interactive_test.py
+my_code_from_collab
+rename_puch_user_id.py
+sample_code*
+sample_mcp_code.py
+
+
+
