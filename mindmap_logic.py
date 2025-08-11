@@ -215,9 +215,9 @@ def format_history_for_dspy(history_list: List[Dict[str, Any]]) -> str:
     return "\n---\n".join([f"{turn.get('role', 'unknown')}: {turn.get('parts', [''])[0]}" for turn in history_list])
 
 async def generate_mindmap_func(
-    user_id: Annotated[str, Field(description="The unique ID for the user.")],
+    puch_user_id: Annotated[str, Field(description="The unique ID for the user, provided by the Puch platform.")],
     user_input: Annotated[str, Field(description="The user's message or topic for the mind map.")],
-) -> List[TextContent]:
+) -> List[Union[TextContent, ImageContent]]:
     
     # Configure DSPy LM
     DEFAULT_MODEL_NAME = "gemini-2.5-flash"
@@ -234,7 +234,7 @@ async def generate_mindmap_func(
         # NEW: Logic to retrieve conversation history from Firestore
     # Principle: State must be externalized. We define a reference to a document
     # in a 'mindmap_conversations' collection, using the user's ID as the unique key.
-    doc_ref = db.collection('mindmap_conversations').document(user_id)
+    doc_ref = db.collection('mindmap_conversations').document(puch_user_id)
     doc = doc_ref.get()
     
     conversation_history = []

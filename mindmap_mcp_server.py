@@ -52,10 +52,10 @@ async def validate() -> str:
     description="Generates a mind map based on a conversation. It will ask clarifying questions if needed."
 )
 async def generate_mindmap(
-    user_id: str,
+    puch_user_id: str,
     user_input: str,
 ) -> List[Union[TextContent, ImageContent]]:
-    return await generate_mindmap_func(user_id, user_input)
+    return await generate_mindmap_func(puch_user_id, user_input)
 
 # --- Run MCP Server ---
 async def main():
