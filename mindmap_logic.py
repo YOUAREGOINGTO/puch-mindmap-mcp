@@ -7,6 +7,9 @@ import graphviz
 import graphviz.backend
 import json
 from typing import Annotated, List, Dict, Any, Union, Optional
+from google.cloud import firestore
+from datetime import datetime, timezone, timedelta
+
 
 import dspy
 import litellm
@@ -205,7 +208,8 @@ def to_graphviz_bytes(root_node: MindMapNode) -> bytes:
     return image_bytes
 
 # --- In-Memory Storage for Conversations ---
-CONVERSATIONS: Dict[str, List[Dict[str, Any]]] = {}
+# CONVERSATIONS: Dict[str, List[Dict[str, Any]]] = {}
+db = firestore.Client()
 
 def format_history_for_dspy(history_list: List[Dict[str, Any]]) -> str:
     return "\n---\n".join([f"{turn.get('role', 'unknown')}: {turn.get('parts', [''])[0]}" for turn in history_list])
@@ -226,10 +230,31 @@ async def generate_mindmap_func(
     dspy.settings.configure(lm=gemini_lm)
 
     # Get or create conversation history
-    conversation_history = CONVERSATIONS.setdefault(puch_user_id, [])
+    # conversation_history = CONVERSATIONS.setdefault(puch_user_id, [])
+        # NEW: Logic to retrieve conversation history from Firestore
+    # Principle: State must be externalized. We define a reference to a document
+    # in a 'mindmap_conversations' collection, using the user's ID as the unique key.
+    doc_ref = db.collection('mindmap_conversations').document(puch_user_id)
+    doc = doc_ref.get()
     
-    # Add user's new input to history
+    conversation_history = []
+    if doc.exists:
+        # The document exists, so we retrieve its data.
+        data = doc.to_dict()
+        last_updated = data.get('last_updated')
+        
+        # Principle: Implement the TTL (Time-To-Live) feature in our application logic.
+        # We check if the data is older than our defined policy (4 days).
+        if last_updated and (datetime.now(timezone.utc) - last_updated) < timedelta(days=4):
+            # The data is not expired, so we load it.
+            conversation_history = data.get('history', [])
+        else:
+            # Data is expired or malformed, we treat it as a new conversation.
+            pass
+            
+    # Add user's new input to history (in memory for this request)
     conversation_history.append({'role': 'user', 'parts': [user_input]})
+
     
     # Initialize DSPy modules
     mindmap_context = MindMapInfoGatherer()
@@ -255,7 +280,7 @@ async def generate_mindmap_func(
             ]
 
         # Clear conversation for next time
-        CONVERSATIONS.pop(puch_user_id, None)
+        doc_ref.delete()
         
         # Return the image and the reasoning in the expected format
         image_payload = {
@@ -272,4 +297,14 @@ async def generate_mindmap_func(
         # Ask for more information
         assistant_question = context_prediction.question
         conversation_history.append({'role': 'assistant', 'parts': [assistant_question]})
+        
+        # NEW: Save the updated history back to Firestore for the next turn.
+        # We save the history and the current timestamp for the TTL calculation.
+        # Using firestore.SERVER_TIMESTAMP ensures we use the reliable clock of the database server.
+        data_to_save = {
+            'history': conversation_history,
+            'last_updated': firestore.SERVER_TIMESTAMP
+        }
+        doc_ref.set(data_to_save)
+
         return [TextContent(type="text", text=assistant_question)]
