@@ -9,7 +9,8 @@ WORKDIR /app
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Graphviz, the critical system-level dependency.
+# Install Graphviz, the critical system-level dependency. Need Root Level Acess
+USER root
 RUN apt-get update && apt-get install -y graphviz
 
 # 4. Copy Application Code: Copy the rest of your application into the container.
